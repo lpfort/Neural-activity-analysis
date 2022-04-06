@@ -1,2 +1,2 @@
-# neural-activity
+# Neural activity analysis
 A real project
