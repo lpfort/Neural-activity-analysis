@@ -1,0 +1,59 @@
+```{r setup}
+#these the the packages
+#download these first by using install.package('ggplotify')
+library(ggplotify)
+library(ggplot2)
+library(cowplot)
+library(tidyr)
+library(pracma)
+library(tidyverse)
+
+#set working directory
+setwd("C:/Users/samN/Desktop/Working/20211213_CS6_analysis/")
+```
+
+
+```{r, CS7B6_B5}
+#Here I want to try and take raw data and automate plotting AND deltaF calculations
+#load in a different toy dataset, no normalisation - these are raw values
+CS6B7_B5<-read.csv(file="C:/Users/samN/Desktop/Working/20211213_CS6_analysis/B5.csv")
+
+CS6B7_B5a<-CS6B7_B5 %>%
+  gather(-Frame, key = "var", value = "value")
+
+head(CS6B7_B5a)
+tail(CS6B7_B5a)
+dim(CS6B7_B5a)
+
+a<-CS6B7_B5a %>%
+  ggplot(aes(x = Frame, y = value)) +
+    facet_wrap(~ var) +
+    geom_point(size = 0.5) 
+#this plots raw, output may be limited by n, where n = number of graphs to plot or individual traces
+ggsave("CS6B7_B5_raw.tiff", width = 54, height = 36, units ="cm")
+
+CS6B7_B5b<-CS6B7_B5a %>%
+   group_by(var) %>%
+   mutate(Col = value/first(value))
+
+
+b<-CS6B7_B5b %>%
+  ggplot(aes(x = Frame, y = Col)) +
+    facet_wrap(~ var) +
+    geom_point(size = 0.5) 
+ggsave("CS6B7_B5b_norm.tiff", width = 54, height = 36, units ="cm")
+
+plot_grid(a,b, labels = c("raw", "normalized"))
+##
+#Now convert to wider format with pivot_wider so I can heatmap and filter 
+pivtest2<-pivot_wider(CS6B7_B5b, id_cols = Frame, names_from = var, values_from = Col)
+
+pivtest3<-as.matrix(pivtest2)
+pivtest4<-pivtest3[,-1]
+write.csv(pivtest4, file = "C:/Users/samN/Desktop/Working/20211213_CS6_analysis/B5_normalized.csv")
+hot<-heatmap(pivtest4, Rowv = NA)
+ggsave("CS6B7_B5_normHM.tiff", width = 54, height = 36, units ="cm")
+
+plot_grid(hot, b)
+
+```
