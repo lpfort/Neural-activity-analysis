@@ -1,0 +1,186 @@
+---
+title: "Untitled"
+author: '1234'
+date: "2022/5/13"
+output: html_document
+---
+
+
+
+```{r setup}
+#these the the packages
+#download these first by using install.package('ggplotify')
+library(ggplotify)
+library(ggplot2)
+library(cowplot)
+library(tidyr)
+library(pracma)
+library(tidyverse)
+
+#set working directory
+```
+
+
+```{r, CS7B6_B5}
+#Here I want to try and take raw data and automate plotting AND deltaF calculations
+#load in a different toy dataset, no normalisation - these are raw values
+CS6B7_B5<-read.csv(file="testneo.csv")
+
+CS6B7_B5a<-CS6B7_B5 %>%
+  gather(-Frame, key = "var", value = "value")
+
+head(CS6B7_B5a)
+tail(CS6B7_B5a)
+dim(CS6B7_B5a)
+
+a<-CS6B7_B5a %>%
+  ggplot(aes(x = Frame, y = value)) +
+    facet_wrap(~ var) +
+    geom_point(size = 0.5) 
+#this plots raw, output may be limited by n, where n = number of graphs to plot or individual traces
+ggsave("CS6B7_B5_raw.tiff", width = 54, height = 36, units ="cm")
+
+CS6B7_B5b<-CS6B7_B5a %>%
+   group_by(var) %>%
+   mutate(Col = value/first(value))
+
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+
+b<-CS6B7_B5b %>%
+  ggplot(aes(x = Frame, y = Col)) +
+    facet_wrap(~ var) +
+    geom_point(size = 0.5) 
+ggsave("CS6B7_B5b_norm.tiff", width = 54, height = 36, units ="cm")
+
+plot_grid(a,b, labels = c("raw", "normalized"))
+##
+#Now convert to wider format with pivot_wider so I can heatmap and filter 
+pivtest2<-pivot_wider(CS6B7_B5b, id_cols = Frame, names_from = var, values_from = Col)
+
+pivtest3<-as.matrix(pivtest2)
+pivtest4<-pivtest3[,-1]
+write.csv(pivtest4, file = "B5_normalized.csv")
+hot<-heatmap(pivtest4, Rowv = NA)
+ggsave("CS6B7_B5_normHM.tiff", width = 54, height = 36, units ="cm")
+
+plot_grid(hot, b)
+```
+
+
+过滤算法
+
+```{r}
+write.csv(pivtest2,"pivtest2.csv",row.names = F)
+```
+
+
+ Cox-Stuart趋势检验
+ 
+ 
+ 在客观世界中会遇到各种各样随时间变动的数据序列，我们关心这些数据随时间变化的规律（增长或者下降的趋势）。例如GDP是否逐年增长，某种疾病的患者是否在不断减少，这时我们就要对该序列进行趋势检验。
+
+假设数据序列x1,x2,x3,……,xn独立，我们以某一常数c为界把该序列分成两部分，并将这两部分两两配对成(x1,xc+1),(x2,xc+2),……(xc,xn)的形式，其中当n为偶数时，c=n/2；当n为奇数时，c=(n+1)/2，中间的数xc+1舍去。接着我们以每一组中后一个数减去前一个数并记下正负性。用s+表示得到整数的个数，即后一个数大于后一个数，用p(+)表示取到正数的概率，用p(-)表示取到负数的概率，这样我们就得到符号检验方法来检验序列是否存在趋势性。
+
+
+```{r}
+library(randtests)
+cox.stuart.test(x = 1:20)
+```
+
+1到20 的平稳的 ，检验的p小 
+
+
+```{r}
+library(randtests)
+cox.stuart.test(c(1:20,20:1))
+```
+
+
+
+1:20 到 20:1 出现了 峰值， 不是上升趋势， p是比较大的。
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 过滤算法
+
+这个是对 所有的进行过滤
+
+```{r}
+
+
+cols = pivtest2  %>% pivot_longer(cols = -Frame,names_to = "var",values_to  = "Col") %>%
+  group_by(var) %>%
+  summarise(p = cox.stuart.test(Col)$p.value) %>%
+  filter(p < 0.0000001) # 设置阈值 0.0000001 
+
+
+
+pivtest2 %>% 
+  pivot_longer(cols = -Frame,names_to = "var",values_to  = "Col")  %>% 
+  filter(var %in% cols$var ) %>%  
+  ggplot(aes(x = Frame , y = Col)) +
+    facet_wrap(~ var) +
+    geom_point() 
+
+
+
+```
+
+
+
+
+需求：现已使用R对原有数据的进行绘图，现需要开发一些过滤策略或算法，并且可以从图像波动中提取特征值（如下图所示）
+1.	由于csv基数过大，需要实现自定义plot数量，并且可以单独提取出所需图像进行观察。例如一次一张，或一次五十张。
+2.	过滤算法只需过滤有波动的数值，并且经过滤后需要注释步骤和参数设定及来源，方便后续修改。
+3.	最后需要从由波峰的图像里提取分析特征值。
+
+
+```{r}
+var_plot <- function(n){
+  # 随机抽选 n个  
+  index = sample(2:ncol(pivtest2),n)
+  # 加上Frame
+  index = c(index,1)
+  # 抽选的N+1 列
+  test = pivtest2[,index]
+    
+  cols = test  %>% pivot_longer(cols = -Frame,names_to = "var",values_to  = "Col") %>%
+    group_by(var) %>%
+    summarise(p = cox.stuart.test(Col)$p.value) %>%
+    filter(p < 0.0000001) # 设置阈值 0.0000001 
+
+  test %>% 
+    pivot_longer(cols = -Frame,names_to = "var",values_to  = "Col")  %>% 
+    filter(var %in% cols$var ) %>%  
+    ggplot(aes(x = Frame , y = Col)) +
+      facet_wrap(~ var) +
+      geom_point() 
+  
+}
+  
+var_plot(20)
+```
+
+
